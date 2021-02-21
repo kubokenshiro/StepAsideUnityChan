@@ -2,69 +2,168 @@
 using System.Collections.Generic;
 using UnityEngine;
 using System.Collections;
+using UnityEngine.UI;
 
 public class UnityChanController : MonoBehaviour
 {
         //アニメーションするためのコンポーネントを入れる
         private Animator myAnimator;
-
         //Unityちゃんを移動させるコンポーネントを入れる
         private Rigidbody myRigidbody;
         //前方向の速度
         private float velocityZ = 16f;
-        //横方向の速度（追加）
+        //横方向の速度
         private float velocityX = 10f;
+        //上方向の速度（追加）
         private float velocityY = 10f;
-        //左右の移動できる範囲（追加）
+        //左右の移動できる範囲
         private float movableRange = 3.4f;
+        //動きを減速させる係数
+        private float coefficient = 0.99f;
+        //ゲーム終了の判定
+        private bool isEnd = false;
+        //ゲーム終了時に表示するテキスト（追加）
+        private GameObject stateText;
 
-        // Use this for initialization
+        private GameObject scoreText;
+        private int score = 0;
+
+        private bool isLButtonDown = false;
+        private bool isRButtonDown = false;
+        private bool isJButtonDown = false;
+
         void Start ()
         {
-            //アニメータコンポーネントを取得
+           //アニメータコンポーネントを取得
                 this.myAnimator = GetComponent<Animator>();
 
                 //走るアニメーションを開始
-                this.myAnimator.SetFloat("Speed", 1);
+                this.myAnimator.SetFloat ("Speed", 1);
 
-                //Rigidbodyコンポーネントを取得（追加）
+                //Rigidbodyコンポーネントを取得
                 this.myRigidbody = GetComponent<Rigidbody>();
+
+                //シーン中のstateTextオブジェクトを取得（追加）
+                this.stateText = GameObject.Find("GameResultText");
+
+                this.scoreText = GameObject.Find("ScoreText");
         }
 
         // Update is called once per frame
         void Update ()
         {
-                //横方向の入力による速度（追加）
+
+                //ゲーム終了ならUnityちゃんの動きを減衰する
+                if (this.isEnd)
+                {
+                        this.velocityZ *= this.coefficient;
+                        this.velocityX *= this.coefficient;
+                        this.velocityY *= this.coefficient;
+                        this.myAnimator.speed *= this.coefficient;
+                }
+
+                //横方向の入力による速度
                 float inputVelocityX = 0;
+                //上方向の入力による速度
                 float inputVelocityY = 0;
 
+
                 //Unityちゃんを矢印キーまたはボタンに応じて左右に移動させる（追加）
-                if (Input.GetKey (KeyCode.LeftArrow)  && -this.movableRange < this.transform.position.x)
+                if ((Input.GetKey (KeyCode.LeftArrow) || this.isLButtonDown) && -this.movableRange < this.transform.position.x)
                 {
-                                //左方向への速度を代入（追加）
-                                inputVelocityX = -this.velocityX;
+                        //左方向への速度を代入
+                        inputVelocityX = -this.velocityX;
                 }
-                else if (Input.GetKey (KeyCode.RightArrow)  && this.transform.position.x < this.movableRange)
+                else if ((Input.GetKey (KeyCode.RightArrow) || this.isRButtonDown) && this.transform.position.x < this.movableRange)
                 {
-                                //右方向への速度を代入（追加）
-                                inputVelocityX = this.velocityX;
+                        //右方向への速度を代入
+                        inputVelocityX = this.velocityX;
                 }
 
-                if(Input.GetKeyDown(KeyCode.Space) && this.transform.position.y < 0.5f)
+                //ジャンプしていない時にスペースが押されたらジャンプする
+                if ((Input.GetKeyDown(KeyCode.Space) || this.isJButtonDown) && this.transform.position.y < 0.5f)
                 {
-                    this.myAnimator.SetBool("Jump", true);
-                    inputVelocityY = this.velocityY;
+                        //ジャンプアニメを再生
+                        this.myAnimator.SetBool ("Jump", true);
+                        //上方向への速度を代入
+                        inputVelocityY = this.velocityY;
                 }
                 else
                 {
-                    inputVelocityY = this.myRigidbody.velocity.y;
+                        //現在のY軸の速度を代入
+                        inputVelocityY = this.myRigidbody.velocity.y;
                 }
 
-                if(this.myAnimator.GetCurrentAnimatorStateInfo(0).IsName("Jump"))
+                //Jumpステートの場合はJumpにfalseをセットする
+                if (this.myAnimator.GetCurrentAnimatorStateInfo(0).IsName ("Jump"))
                 {
-                    this.myAnimator.SetBool("Jump", false);
+                          this.myAnimator.SetBool ("Jump", false);
                 }
-                //Unityちゃんに速度を与える（変更）
-                this.myRigidbody.velocity = new Vector3 (inputVelocityX , inputVelocityY , velocityZ);
+
+                //Unityちゃんに速度を与える
+                this.myRigidbody.velocity = new Vector3(inputVelocityX, inputVelocityY, velocityZ);
+        }
+        void OnTriggerEnter(Collider other)
+        {
+
+                //障害物に衝突した場合
+                if (other.gameObject.tag == "CarTag" || other.gameObject.tag == "TrafficConeTag")
+                {
+                        this.isEnd = true;
+                        //stateTextにGAME OVERを表示（追加）
+                        this.stateText.GetComponent<Text>().text = "GAME OVER";
+                }
+
+                //ゴール地点に到達した場合
+                if (other.gameObject.tag == "GoalTag")
+                {
+                        this.isEnd = true;
+                        //stateTextにGAME CLEARを表示（追加）
+                        this.stateText.GetComponent<Text>().text = "CLEAR!!";
+                }
+
+                //コインに衝突した場合
+                if (other.gameObject.tag == "CoinTag")
+                {
+                        this.score += 10;
+                        this.scoreText.GetComponent<Text>().text = "Score" + this.score + "pt";
+                        //パーティクルを再生
+                        GetComponent<ParticleSystem> ().Play ();
+
+                        //接触したコインのオブジェクトを破棄
+                        Destroy (other.gameObject);
+                }
+        }
+        public void GetMyJumpButtonDown()
+        {
+                this.isJButtonDown = true;
+        }
+
+        //ジャンプボタンを離した場合の処理（追加）
+        public void GetMyJumpButtonUp()
+        {
+                this.isJButtonDown = false;
+        }
+
+        //左ボタンを押し続けた場合の処理（追加）
+        public void GetMyLeftButtonDown()
+        {
+                this.isLButtonDown = true;
+        }
+        //左ボタンを離した場合の処理（追加）
+        public void GetMyLeftButtonUp() 
+        {
+                this.isLButtonDown = false;
+        }
+
+        //右ボタンを押し続けた場合の処理（追加）
+        public void GetMyRightButtonDown()
+        {
+                this.isRButtonDown = true;
+        }
+        //右ボタンを離した場合の処理（追加）
+        public void GetMyRightButtonUp()
+        {
+                this.isRButtonDown = false;
         }
 }
